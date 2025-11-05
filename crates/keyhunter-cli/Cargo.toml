@@ -1,0 +1,15 @@
+[package]
+name = "keyhunter-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+keyhunter-core = { path = "../keyhunter-core" }
+
+[[bin]]
+name = "keyhunter"
+path = "src/main.rs"

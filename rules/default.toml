@@ -1,0 +1,70 @@
+## 默认规则集合（与 gitleaks 规则集整合）
+## 字段说明：
+## - id: 规则标识
+## - name: 可读名称
+## - pattern: 正则模式（与 gitleaks 的 regex 等价）
+
+[[rules]]
+id = "openai.api_key"
+name = "OpenAI API Key"
+pattern = "\\b(sk-(?:proj|svcacct|admin)-(?:[A-Za-z0-9_-]{74}|[A-Za-z0-9_-]{58})T3BlbkFJ(?:[A-Za-z0-9_-]{74}|[A-Za-z0-9_-]{58})\\b|sk-[a-zA-Z0-9]{20}T3BlbkFJ[a-zA-Z0-9]{20})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "github.pat"
+name = "GitHub Personal Access Token"
+pattern = "ghp_[0-9a-zA-Z]{36}"
+
+[[rules]]
+id = "github.oauth"
+name = "GitHub OAuth Token"
+pattern = "gho_[0-9a-zA-Z]{36}"
+
+[[rules]]
+id = "github.app_token"
+name = "GitHub App Token"
+pattern = "(?:ghu|ghs)_[0-9a-zA-Z]{36}"
+
+[[rules]]
+id = "github.refresh_token"
+name = "GitHub Refresh Token"
+pattern = "ghr_[0-9a-zA-Z]{36}"
+
+[[rules]]
+id = "github.fine_grained_pat"
+name = "GitHub Fine-grained PAT"
+pattern = "github_pat_\\w{82}"
+
+[[rules]]
+id = "gitlab.pat"
+name = "GitLab Personal Access Token"
+pattern = "glpat-[\\w-]{20}"
+
+[[rules]]
+id = "aws.access_key_id"
+name = "AWS Access Key ID"
+pattern = "\\b((?:A3T[A-Z0-9]|AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16})\\b"
+
+[[rules]]
+id = "slack.bot_token"
+name = "Slack Bot Token"
+pattern = "xoxb-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*"
+
+[[rules]]
+id = "slack.user_token"
+name = "Slack User Token"
+pattern = "xox[pe](?:-[0-9]{10,13}){3}-[a-zA-Z0-9-]{28,34}"
+
+[[rules]]
+id = "slack.legacy_token"
+name = "Slack Legacy Token"
+pattern = "xox[os]-\\d+-\\d+-\\d+-[a-fA-F\\d]+"
+
+[[rules]]
+id = "slack.webhook"
+name = "Slack Webhook URL"
+pattern = "(?:https?://)?hooks.slack.com/(?:services|workflows|triggers)/[A-Za-z0-9+/]{43,56}"
+
+[[rules]]
+id = "stripe.token"
+name = "Stripe Secret/Restricted Key"
+pattern = "\\b((?:sk|rk)_(?:test|live|prod)_[a-zA-Z0-9]{10,99})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"

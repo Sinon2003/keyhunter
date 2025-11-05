@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "crates/keyhunter-cli",
+    "crates/keyhunter-core",
+]
+resolver = "2"
