@@ -69,3 +69,242 @@ id = "stripe.token"
 name = "Stripe Secret/Restricted Key"
 pattern = "\\b((?:sk|rk)_(?:test|live|prod)_[a-zA-Z0-9]{10,99})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
 
+# -------------------- Curated High-Confidence Additions --------------------
+
+## GCP / Google
+[[rules]]
+id = "gcp.api_key"
+name = "GCP API Key"
+pattern = "\\b(AIza[\\w-]{35})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "google.oauth_refresh_token"
+name = "Google OAuth Refresh Token"
+pattern = "\\b(ya29\\.[0-9A-Za-z_-]{50,200})\\b"
+
+## Anthropic
+[[rules]]
+id = "anthropic.admin_api_key"
+name = "Anthropic Admin API Key"
+pattern = "\\b(sk-ant-admin01-[a-zA-Z0-9_\\-]{93}AA)(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "anthropic.api_key"
+name = "Anthropic API Key"
+pattern = "\\b(sk-ant-api03-[a-zA-Z0-9_\\-]{93}AA)(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Cohere
+[[rules]]
+id = "cohere.api_token"
+name = "Cohere API Token"
+pattern = "[\\w.-]{0,50}?(?i:[\\w.-]{0,50}?(?:cohere|CO_API_KEY)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3})(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-zA-Z0-9]{40})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## HuggingFace
+[[rules]]
+id = "huggingface.access_token"
+name = "HuggingFace Access Token"
+pattern = "\\b(hf_(?i:[a-z]{34}))(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "huggingface.org_token"
+name = "HuggingFace Organization API Token"
+pattern = "\\b(api_org_(?i:[a-z]{34}))(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Cloudflare
+[[rules]]
+id = "cloudflare.api_key"
+name = "Cloudflare API Key"
+pattern = "(?i)[\\w.-]{0,50}?(?:cloudflare)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-z0-9_-]{40})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "cloudflare.global_api_key"
+name = "Cloudflare Global API Key"
+pattern = "(?i)[\\w.-]{0,50}?(?:cloudflare)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-f0-9]{37})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "cloudflare.origin_ca_key"
+name = "Cloudflare Origin CA Key"
+pattern = "\\b(v1\\.0-[a-f0-9]{24}-[a-f0-9]{146})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Datadog
+[[rules]]
+id = "datadog.access_token"
+name = "Datadog Access Token"
+pattern = "(?i)[\\w.-]{0,50}?(?:datadog)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-z0-9]{40})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## DigitalOcean
+[[rules]]
+id = "digitalocean.access_token"
+name = "DigitalOcean Access Token"
+pattern = "\\b(doo_v1_[a-f0-9]{64})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "digitalocean.pat"
+name = "DigitalOcean Personal Access Token"
+pattern = "\\b(dop_v1_[a-f0-9]{64})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "digitalocean.refresh_token"
+name = "DigitalOcean Refresh Token"
+pattern = "(?i)\\b(dor_v1_[a-f0-9]{64})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Discord (client secret only; client-id excluded as non-secret)
+[[rules]]
+id = "discord.client_secret"
+name = "Discord Client Secret"
+pattern = "(?i)[\\w.-]{0,50}?(?:discord)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-z0-9=_\\-]{32})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Dropbox
+[[rules]]
+id = "dropbox.api_token"
+name = "Dropbox API Token"
+pattern = "(?i)[\\w.-]{0,50}?(?:dropbox)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-z0-9]{15})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "dropbox.long_lived_token"
+name = "Dropbox Long-Lived API Token"
+pattern = "(?i)[\\w.-]{0,50}?(?:dropbox)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-z0-9]{11}(AAAAAAAAAA)[a-z0-9\\-_=]{43})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "dropbox.short_lived_token"
+name = "Dropbox Short-Lived API Token"
+pattern = "(?i)[\\w.-]{0,50}?(?:dropbox)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}(sl\\.[a-z0-9\\-=_]{135})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Facebook
+[[rules]]
+id = "facebook.access_token"
+name = "Facebook Access Token"
+pattern = "\\b(EAA[MC](?i)[a-z0-9]{100,})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "facebook.app_secret"
+name = "Facebook App Secret"
+pattern = "(?i)[\\w.-]{0,50}?(?:facebook)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-f0-9]{32})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Heroku
+[[rules]]
+id = "heroku.api_key"
+name = "Heroku API Key"
+pattern = "(?i)[\\w.-]{0,50}?(?:heroku)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "heroku.api_key_v2"
+name = "Heroku API Key v2"
+pattern = "\\b((HRKU-AA[0-9a-zA-Z_-]{58}))(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Linear
+[[rules]]
+id = "linear.api_key"
+name = "Linear API Key"
+pattern = "\\b(lin_api_(?i)[a-z0-9]{40})\\b"
+
+[[rules]]
+id = "linear.client_secret"
+name = "Linear Client Secret"
+pattern = "(?i)[\\w.-]{0,50}?(?:linear)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-f0-9]{32})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Mailgun
+[[rules]]
+id = "mailgun.private_api_key"
+name = "Mailgun Private API Key"
+pattern = "(?i)[\\w.-]{0,50}?(?:mailgun)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}(key-[a-f0-9]{32})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "mailgun.public_key"
+name = "Mailgun Public Key"
+pattern = "(?i)[\\w.-]{0,50}?(?:mailgun)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}(pubkey-[a-f0-9]{32})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "mailgun.signing_key"
+name = "Mailgun Signing Key"
+pattern = "(?i)[\\w.-]{0,50}?(?:mailgun)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-h0-9]{32}-[a-h0-9]{8}-[a-h0-9]{8})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Notion
+[[rules]]
+id = "notion.api_token"
+name = "Notion API Token"
+pattern = "\\b(ntn_[0-9]{11}[A-Za-z0-9]{32}[A-Za-z0-9]{3})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Postman
+[[rules]]
+id = "postman.api_token"
+name = "Postman API Token"
+pattern = "\\b(PMAK-(?i)[a-f0-9]{24}\\-[a-f0-9]{34})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "postman.user_token"
+name = "Postman User Token"
+pattern = "\\b(pnu_[a-zA-Z0-9]{36})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Atlassian
+[[rules]]
+id = "atlassian.api_token"
+name = "Atlassian API Token"
+pattern = "(?i)[\\w.-]{0,50}?(?:(?-i:ATLASSIAN|[Aa]tlassian)|(?-i:CONFLUENCE|[Cc]onfluence)|(?-i:JIRA|[Jj]ira))(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-z0-9]{20}[a-f0-9]{4})(?:[\\x60'\"\\s;]|\\\\[nr]|$)|\\b(ATATT3[A-Za-z0-9_\\-=]{186})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## SendGrid
+[[rules]]
+id = "sendgrid.api_token"
+name = "SendGrid API Token"
+pattern = "\\b(SG\\.(?i)[a-z0-9=_\\-\\.]{66})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Sentry
+[[rules]]
+id = "sentry.access_token"
+name = "Sentry Access Token"
+pattern = "(?i)[\\w.-]{0,50}?(?:sentry)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([a-f0-9]{64})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+[[rules]]
+id = "sentry.org_token"
+name = "Sentry Org Token"
+pattern = "\\bsntrys_eyJpYXQiO[a-zA-Z0-9+/]{10,200}(?:LCJyZWdpb25fdXJs|InJlZ2lvbl91cmwi|cmVnaW9uX3VybCI6)[a-zA-Z0-9+/]{10,200}={0,2}_[a-zA-Z0-9+/]{43}(?:[^a-zA-Z0-9+/]|\\z)"
+
+[[rules]]
+id = "sentry.user_token"
+name = "Sentry User Token"
+pattern = "\\b(sntryu_[a-f0-9]{64})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Slack (additional)
+[[rules]]
+id = "slack.app_token"
+name = "Slack App Token"
+pattern = "(?i)xapp-\\d-[A-Z0-9]+-\\d+-[a-z0-9]+"
+
+## Shopify
+[[rules]]
+id = "shopify.access_token"
+name = "Shopify Access Token"
+pattern = "shpat_[a-fA-F0-9]{32}"
+
+[[rules]]
+id = "shopify.custom_access_token"
+name = "Shopify Custom Access Token"
+pattern = "shpca_[a-fA-F0-9]{32}"
+
+[[rules]]
+id = "shopify.private_app_token"
+name = "Shopify Private App Access Token"
+pattern = "shppa_[a-fA-F0-9]{32}"
+
+[[rules]]
+id = "shopify.shared_secret"
+name = "Shopify Shared Secret"
+pattern = "shpss_[a-fA-F0-9]{32}"
+
+## Telegram
+[[rules]]
+id = "telegram.bot_api_token"
+name = "Telegram Bot API Token"
+pattern = "(?i)[\\w.-]{0,50}?(?:telegr)(?:[ \\t\\w.-]{0,20})[\\s'\"]{0,3}(?:=|>|:{1,3}=|\\|\\||:|=>|\\?=|,)[\\x60'\"\\s=]{0,5}([0-9]{5,16}:(?-i:A)[a-z0-9_\\-]{34})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+
+## Twilio
+[[rules]]
+id = "twilio.api_key"
+name = "Twilio API Key"
+pattern = "SK[0-9a-fA-F]{32}"
+
+## Private Keys (PEM/SSH/PGP)
+[[rules]]
+id = "private_key.block"
+name = "Private Key Block"
+pattern = "(?s)(-----BEGIN [^-\\r\\n]{0,100}PRIVATE KEY(?: BLOCK)?-----[\\r\\n]+[A-Za-z0-9+/=\\r\\n-]{100,}-----END [^-\\r\\n]{0,100}PRIVATE KEY(?: BLOCK)?-----)"

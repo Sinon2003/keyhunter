@@ -191,8 +191,17 @@ fn scan_buffer_with_prefilter(buf: &[u8], base_offset: usize, file_hash: &str, p
     hits.sort_by_key(|h| h.0);
     let mut windows: Vec<(usize, usize, Vec<usize>)> = Vec::new(); // (start,end, anchor_ids)
     for (pos, aid) in hits.into_iter() {
-        let s = pos.saturating_sub(WINDOW_BEFORE);
-        let e = (pos + WINDOW_AFTER).min(buf.len());
+        // 针对 PEM/私钥类锚点放大窗口，避免长块被截断导致无法匹配完整 BEGIN..END 结构
+        let anchor = plan.anchors.get(aid).map(|v| v.as_slice()).unwrap_or(&[]);
+        let is_begin = anchor.starts_with(b"-----BEGIN ");
+        let is_end   = anchor.starts_with(b"-----END ");
+        let is_priv  = anchor.windows(12).any(|w| w == b"PRIVATE KEY");
+
+        let before = if is_end || is_priv { WINDOW_BEFORE.max(2048) } else { WINDOW_BEFORE };
+        let after  = if is_begin || is_priv { WINDOW_AFTER.max(16 * 1024) } else { WINDOW_AFTER };
+
+        let s = pos.saturating_sub(before);
+        let e = (pos + after).min(buf.len());
         if let Some(last) = windows.last_mut() {
             if s <= last.1 { // 重叠，合并
                 last.1 = last.1.max(e);

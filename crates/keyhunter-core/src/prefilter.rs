@@ -31,8 +31,11 @@ pub(crate) struct PrefilterPlan {
 }
 
 /// 窗口参数（以 AC 命中位置为中心）
-pub(crate) const WINDOW_BEFORE: usize = 256;
-pub(crate) const WINDOW_AFTER: usize = 2048;
+/// 说明：在默认规则集中，多数密钥都紧邻锚点（如前缀/域名）。
+/// 将窗口收敛可显著减少精准正则的处理字节量，提升吞吐。
+/// 若发现召回下降，可在后续通过 CLI 参数暴露成可调项。
+pub(crate) const WINDOW_BEFORE: usize = 128;
+pub(crate) const WINDOW_AFTER: usize = 1024;
 
 /// 从 RuleSpec 列表构建预筛计划
 pub(crate) fn build_prefilter_plan(specs: &[RuleSpec]) -> Arc<PrefilterPlan> {
@@ -94,21 +97,42 @@ pub(crate) fn build_prefilter_plan(specs: &[RuleSpec]) -> Arc<PrefilterPlan> {
 /// - 优先匹配常见密钥前缀（sk-, ghp_, glpat-, AKIA, ASIA, hf_, api_org_, SG., shpat_ 等）
 /// - 其次提取模式中的连续字面量片段（长度≥3），排除常见元字符区域（[]{}()*+?|^$\\）
 fn extract_anchors_from_pattern(pat: &str) -> Vec<Vec<u8>> {
+    // out 收集候选锚点（字节串），避免重复
     let mut out: HashSet<Vec<u8>> = HashSet::new();
-    let candidates = [
-        "sk-", "ghp_", "gho_", "ghr_", "ghs_", "ghu_", "github_pat_", "glpat-",
-        "xox", "xapp-", "hooks.slack.com", "slack.com", "sk_", "rk_",
+
+    // 1) 精选的高置信锚点（覆盖主流密钥前缀/域名/标识），优先使用
+    //    注意：尽量使用具有区分度的前缀，避免如 "SK" 这类过于宽泛的短 token。
+    let curated = [
+        // 通用厂商/产品前缀
+        "sk-", "sk_", "rk_", "ghp_", "gho_", "ghr_", "ghs_", "ghu_", "github_pat_", "glpat-",
+        "xoxb-", "xoxp-", "xoxe-", "xoxs-", "xapp-", "hooks.slack.com", "slack.com",
         "AKIA", "ASIA", "A3T", "ABIA", "ACCA", "v1.0-", "cloudflare",
         "doo_v1_", "dop_v1_", "dor_v1_", "discord", "dropbox", "EAA", "facebook",
         "heroku", "HRKU-AA", "hf_", "api_org_", "lin_api_", "mailgun", "ntn_",
         "PMAK-", "pnu_", "ATATT3", "SG.", "sntrys_", "sntryu_", "shpat_", "shpca_",
-        "shppa_", "shpss_", "telegram", "SK", "AIza", "ya29.", "openai", "cohere",
+        "shppa_", "shpss_", "telegram", "AIza", "ya29.", "openai", "cohere",
+        // PEM/私钥常见边界（避免使用通用的 "KEY"、"BEGIN"，选择更具体的片段）
+        "-----BEGIN ", "-----END ", "PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY",
+        "OPENSSH PRIVATE KEY",
     ];
-    for c in candidates.iter() {
+    for c in curated.iter() {
         if pat.contains(c) { out.insert(c.as_bytes().to_vec()); }
     }
 
-    // 简单字面量扫描：提取不含元字符的连续片段
+    // 1.1 针对含有字符类/分支但目标文本具备确定前缀的规则，主动扩展锚点：
+    //  - Slack 用户令牌：xox[pe]- → { "xoxp-", "xoxe-" }
+    //  - Slack 旧令牌：  xox[os]- → { "xoxo-", "xoxs-" }
+    //  - GitHub App：    (?:ghu|ghs)_ → { "ghu_", "ghs_" }
+    //  - Stripe sk/rk：  (?:sk|rk)_   → { "sk_",  "rk_" }
+    if pat.contains("xox[pe]") || pat.contains("xox(?:p|e)") { out.insert(b"xoxp-".to_vec()); out.insert(b"xoxe-".to_vec()); }
+    if pat.contains("xox[os]") || pat.contains("xox(?:o|s)") { out.insert(b"xoxo-".to_vec()); out.insert(b"xoxs-".to_vec()); }
+    if pat.contains("(?:ghu|ghs)_") || pat.contains("ghu|ghs)_") { out.insert(b"ghu_".to_vec()); out.insert(b"ghs_".to_vec()); }
+    if pat.contains("(?:sk|rk)_")  || pat.contains("sk|rk)_")  { out.insert(b"sk_".to_vec());  out.insert(b"rk_".to_vec()); }
+
+    // 2) 保守的字面量抽取（降噪版）：
+    //    - 仅提取不含元字符的连续片段
+    //    - 过滤掉过短或过于通用的词（例如 KEY/BEGIN/END 等）
+    //    - 保留包含分隔符(-_/.)的短片段，或长度>=6 的纯字母数字片段
     let mut cur = String::new();
     let is_meta = |ch: char| matches!(ch, '['|']'|'{'|'}'|'('|')'|'?'|'*'|'+'|'|'|'^'|'$'|'\\');
     let allow = |ch: char| ch.is_ascii_alphanumeric() || matches!(ch, '-'|'_'|'.'|'/');
@@ -130,9 +154,39 @@ fn extract_anchors_from_pattern(pat: &str) -> Vec<Vec<u8>> {
     }
     flush_literal(&mut cur, &mut out);
 
-    // 过滤过短字面量
-    let mut v: Vec<Vec<u8>> = out.into_iter().filter(|s| s.len() >= 3).collect();
-    // 排序以稳定（长度降序，字典序）
+    // 3) 过滤规则：
+    //    - 长度>=6 直接保留；
+    //    - 长度>=4 且包含 - _ . / 之一保留（如 glpat-、AIza、ya29.）
+    //    - 排除通用词（stoplist），避免产生大量无关窗口
+    let stoplist = [
+        "KEY", "BEGIN", "END", "PRIVATE", "TOKEN", "ACCESS", "SECRET", "AUTH", "PASSWORD",
+    ];
+
+    let has_sep = |s: &Vec<u8>| s.iter().any(|&b| matches!(b, b'-'|b'_'|b'.'|b'/'));
+    let is_stop = |s: &Vec<u8>| {
+        if s.len() < 3 { return true; }
+        let up = String::from_utf8_lossy(s).to_ascii_uppercase();
+        stoplist.iter().any(|w| up == *w)
+    };
+
+    // 短锚点白名单（即使不满足长度/分隔符规则也保留）
+    let short_whitelist: &[&[u8]] = &[b"sk_", b"rk_", b"ghu_", b"ghs_", b"xoxp-", b"xoxe-", b"xoxs-", b"xoxo-"];
+
+    let mut v: Vec<Vec<u8>> = out
+        .into_iter()
+        .filter(|s| {
+            if short_whitelist.iter().any(|w| *w == &s[..]) { return true; }
+            if is_stop(s) { return false; }
+            let len = s.len();
+            if len >= 6 { return true; }
+            if len >= 4 && has_sep(s) { return true; }
+            // 兼容少数高价值短锚点（白名单-字符串）
+            let ss = String::from_utf8_lossy(s);
+            matches!(ss.as_ref(), "AIza" | "ya29.")
+        })
+        .collect();
+
+    // 稳定排序（长度降序，字典序升序）
     v.sort_by(|a, b| {
         use std::cmp::Ordering;
         match b.len().cmp(&a.len()) { Ordering::Equal => a.cmp(b), o => o }
