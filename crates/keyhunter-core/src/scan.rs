@@ -23,9 +23,13 @@ pub fn scan_and_write(input_dir: &Path, out: &mut dyn Write, opts: &ScanOptions)
         .clone()
         .unwrap_or_else(|| PathBuf::from("./rules/default.toml"));
     let rule_specs = load_rule_specs(&rules_path)?;
-    // 构建对应引擎的检测器集合（另一种引擎仅在切换时使用）
-    let detectors_bytes = Arc::new(DetectorSetBytes::from_specs(&rule_specs)?);
-    let detectors_utf8 = DetectorSetUtf8::from_specs(&rule_specs)?;
+    // 仅按需构建检测器集合：
+    // - 若为 Bytes 引擎，仅编译 bytes 规则，避免 UTF-8 规则的额外编译开销；
+    // - 若为 Utf8 引擎，仅编译 utf8 规则。
+    let (detectors_bytes, detectors_utf8): (Option<Arc<DetectorSetBytes>>, Option<DetectorSetUtf8>) = match opts.engine {
+        ScanEngine::Bytes => (Some(Arc::new(DetectorSetBytes::from_specs(&rule_specs)?)), None),
+        ScanEngine::Utf8 => (None, Some(DetectorSetUtf8::from_specs(&rule_specs)?)),
+    };
 
     let mut stats = ScanStats::default();
 
@@ -43,7 +47,9 @@ pub fn scan_and_write(input_dir: &Path, out: &mut dyn Write, opts: &ScanOptions)
     let use_parallel = matches!(opts.engine, ScanEngine::Bytes) && threads > 1;
 
     if use_parallel {
-        scan_and_write_parallel_bytes(&files, out, opts, &detectors_bytes, &mut stats, threads)?;
+        // Bytes 引擎并行路径：必有 bytes 检测器
+        let detectors_bytes = detectors_bytes.as_ref().expect("bytes detectors not built");
+        scan_and_write_parallel_bytes(&files, out, opts, detectors_bytes, &mut stats, threads)?;
         return Ok(stats);
     }
 
@@ -54,8 +60,14 @@ pub fn scan_and_write(input_dir: &Path, out: &mut dyn Write, opts: &ScanOptions)
         let file_name = match path.file_name().and_then(|s| s.to_str()) { Some(s) => s, None => continue };
         if let Some(max) = opts.max_file_size { if let Ok(md) = std::fs::metadata(&path) { if md.len() > max { continue; } } }
         let res = match opts.engine {
-            ScanEngine::Bytes => scan_file_bytes(&path, file_name, &detectors_bytes),
-            ScanEngine::Utf8 => scan_file_utf8(&path, file_name, &detectors_utf8),
+            ScanEngine::Bytes => {
+                let det = detectors_bytes.as_ref().expect("bytes detectors not built");
+                scan_file_bytes(&path, file_name, det)
+            }
+            ScanEngine::Utf8 => {
+                let det = detectors_utf8.as_ref().expect("utf8 detectors not built");
+                scan_file_utf8(&path, file_name, det)
+            }
         };
         match res {
             Ok(mut findings) => {
@@ -189,4 +201,3 @@ fn scan_and_write_parallel_bytes(
     write!(out, "]")?;
     Ok(())
 }
-
