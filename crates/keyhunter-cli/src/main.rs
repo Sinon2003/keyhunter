@@ -26,7 +26,7 @@ enum Commands {
         #[arg(long, default_value = "./result.json")]
         output: PathBuf,
 
-        /// 线程数（预留参数，暂未使用）。"auto" 表示自动
+        /// 线程数（bytes 引擎启用并行；"auto"=CPU 核心数）
         #[arg(long, default_value = "auto")]
         threads: String,
 
