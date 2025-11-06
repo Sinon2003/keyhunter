@@ -12,6 +12,7 @@ mod types;
 mod findings;
 mod detectors;
 mod rules;
+mod prefilter;
 mod engine_bytes;
 mod engine_utf8;
 mod scan;

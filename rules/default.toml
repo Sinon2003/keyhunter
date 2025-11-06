@@ -68,3 +68,4 @@ pattern = "(?:https?://)?hooks.slack.com/(?:services|workflows|triggers)/[A-Za-z
 id = "stripe.token"
 name = "Stripe Secret/Restricted Key"
 pattern = "\\b((?:sk|rk)_(?:test|live|prod)_[a-zA-Z0-9]{10,99})(?:[\\x60'\"\\s;]|\\\\[nr]|$)"
+

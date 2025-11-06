@@ -7,6 +7,7 @@ use std::path::Path;
 
 use crate::detectors::DetectorSetBytes;
 use crate::findings::FindingPublic as Finding;
+use crate::prefilter::{PrefilterPlan, WINDOW_AFTER, WINDOW_BEFORE, get_or_compile_bytes_regex};
 
 /// 小文件阈值（字节）。小文件整读，超出则分块扫描。
 pub(crate) const SMALL_FILE_MAX: usize = 1 * 1024 * 1024; // 1 MiB
@@ -102,3 +103,118 @@ pub(crate) fn scan_file_bytes(path: &Path, file_hash: &str, detectors: &Detector
     Ok(findings)
 }
 
+/// 使用预筛计划进行小文件扫描（字节引擎）
+pub(crate) fn scan_file_bytes_prefilter(path: &Path, file_hash: &str, plan: &PrefilterPlan) -> Result<Vec<Finding>> {
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut buf = Vec::new();
+    reader.read_to_end(&mut buf)?;
+
+    Ok(scan_buffer_with_prefilter(&buf, 0, file_hash, plan))
+}
+
+/// 使用预筛计划进行大文件分块扫描（字节引擎）
+pub(crate) fn scan_file_bytes_chunked_prefilter(path: &Path, file_hash: &str, plan: &PrefilterPlan) -> Result<Vec<Finding>> {
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut findings: Vec<Finding> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    let mut buf = vec![0u8; CHUNK_SIZE];
+    let mut carry: Vec<u8> = Vec::new();
+    let mut file_offset: usize = 0;
+
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 { break; }
+        let mut chunk: Vec<u8> = Vec::with_capacity(carry.len() + n);
+        if !carry.is_empty() { chunk.extend_from_slice(&carry); }
+        chunk.extend_from_slice(&buf[..n]);
+
+        let base = file_offset.saturating_sub(carry.len());
+        let mut part = scan_buffer_with_prefilter(&chunk, base, file_hash, plan);
+        // 合并并确保文件内去重
+        for f in part.drain(..) {
+            if seen.insert(f.value.clone()) {
+                findings.push(f);
+            }
+        }
+
+        // 更新 carry 与偏移
+        let keep = CHUNK_OVERLAP.min(carry.len() + n);
+        let total_len = carry.len() + n;
+        if keep > 0 {
+            carry = chunk[total_len - keep..total_len].to_vec();
+        } else {
+            carry.clear();
+        }
+        file_offset = file_offset.saturating_add(n);
+    }
+
+    Ok(findings)
+}
+
+/// 在给定缓冲区上执行预筛匹配，返回命中项（不排序）
+fn scan_buffer_with_prefilter(buf: &[u8], base_offset: usize, file_hash: &str, plan: &PrefilterPlan) -> Vec<Finding> {
+    let mut findings: Vec<Finding> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    // 1) 全局 AC 扫描，收集命中位置
+    let mut hits: Vec<(usize /*pos*/, usize /*anchor_id*/)> = Vec::new();
+    for m in plan.ac.find_iter(buf) {
+        hits.push((m.start(), m.pattern().as_usize()));
+    }
+    if hits.is_empty() {
+        // 无锚点命中：直接返回空结果（不做全量回退，以提升性能）
+        return findings;
+    }
+
+    // 2) 生成窗口并合并
+    hits.sort_by_key(|h| h.0);
+    let mut windows: Vec<(usize, usize, Vec<usize>)> = Vec::new(); // (start,end, anchor_ids)
+    for (pos, aid) in hits.into_iter() {
+        let s = pos.saturating_sub(WINDOW_BEFORE);
+        let e = (pos + WINDOW_AFTER).min(buf.len());
+        if let Some(last) = windows.last_mut() {
+            if s <= last.1 { // 重叠，合并
+                last.1 = last.1.max(e);
+                last.2.push(aid);
+                continue;
+            }
+        }
+        windows.push((s, e, vec![aid]));
+    }
+
+    // 3) 对每个窗口确定候选规则并执行精准正则提取
+    for (ws, we, aids) in windows.into_iter() {
+        // 聚合规则索引
+        let mut rule_set: HashSet<usize> = HashSet::new();
+        for aid in aids {
+            if let Some(rules) = plan.anchor_to_rules.get(aid) {
+                for &ri in rules.iter() { rule_set.insert(ri); }
+            }
+        }
+        if rule_set.is_empty() { continue; }
+        let window = &buf[ws..we];
+
+        for ri in rule_set.into_iter() {
+            if let Some(rx) = get_or_compile_bytes_regex(plan, ri) {
+                for caps in rx.captures_iter(window) {
+                    let (start, end) = match caps.get(1) {
+                        Some(m) => (m.start(), m.end()),
+                        None => caps.get(0).map(|m| (m.start(), m.end())).unwrap_or((0, 0)),
+                    };
+                    if end <= start { continue; }
+                    let raw = &window[start..end];
+                    let value = String::from_utf8_lossy(raw).to_string();
+                    if seen.insert(value.clone()) {
+                        let global_start = base_offset + ws + start;
+                        findings.push(Finding { file_hash: file_hash.to_string(), value, start_offset: global_start });
+                    }
+                }
+            }
+        }
+    }
+
+    findings
+}

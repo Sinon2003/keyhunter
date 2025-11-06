@@ -5,12 +5,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use walkdir::WalkDir;
 
-use crate::detectors::{DetectorSetBytes, DetectorSetUtf8};
-use crate::engine_bytes::{scan_file_bytes, scan_file_bytes_chunked, SMALL_FILE_MAX};
+use crate::detectors::DetectorSetUtf8;
+use crate::engine_bytes::{scan_file_bytes_prefilter, scan_file_bytes_chunked_prefilter, SMALL_FILE_MAX};
 use crate::engine_utf8::scan_file_utf8;
 use crate::findings::{sort_findings_stable, FindingPublic as Finding};
 use crate::options::{ScanEngine, ScanOptions, ScanStats};
 use crate::rules::load_rule_specs;
+use crate::prefilter::{build_prefilter_plan, PrefilterPlan};
 
 /// 扫描目录并将结果以 JSON 数组流式写入 `out`
 /// 稳定性保证：
@@ -23,11 +24,11 @@ pub fn scan_and_write(input_dir: &Path, out: &mut dyn Write, opts: &ScanOptions)
         .clone()
         .unwrap_or_else(|| PathBuf::from("./rules/default.toml"));
     let rule_specs = load_rule_specs(&rules_path)?;
-    // 仅按需构建检测器集合：
-    // - 若为 Bytes 引擎，仅编译 bytes 规则，避免 UTF-8 规则的额外编译开销；
-    // - 若为 Utf8 引擎，仅编译 utf8 规则。
-    let (detectors_bytes, detectors_utf8): (Option<Arc<DetectorSetBytes>>, Option<DetectorSetUtf8>) = match opts.engine {
-        ScanEngine::Bytes => (Some(Arc::new(DetectorSetBytes::from_specs(&rule_specs)?)), None),
+    // 引擎初始化：按需构建
+    // - Bytes：构建预筛计划（AC + 懒编译缓存），避免启动期编译整套正则
+    // - Utf8：仅编译 UTF-8 规则集合
+    let (prefilter_plan, detectors_utf8): (Option<Arc<PrefilterPlan>>, Option<DetectorSetUtf8>) = match opts.engine {
+        ScanEngine::Bytes => (Some(build_prefilter_plan(&rule_specs)), None),
         ScanEngine::Utf8 => (None, Some(DetectorSetUtf8::from_specs(&rule_specs)?)),
     };
 
@@ -47,9 +48,9 @@ pub fn scan_and_write(input_dir: &Path, out: &mut dyn Write, opts: &ScanOptions)
     let use_parallel = matches!(opts.engine, ScanEngine::Bytes) && threads > 1;
 
     if use_parallel {
-        // Bytes 引擎并行路径：必有 bytes 检测器
-        let detectors_bytes = detectors_bytes.as_ref().expect("bytes detectors not built");
-        scan_and_write_parallel_bytes(&files, out, opts, detectors_bytes, &mut stats, threads)?;
+        // Bytes 引擎并行路径：必有预筛计划
+        let plan = prefilter_plan.as_ref().expect("prefilter plan not built");
+        scan_and_write_parallel_bytes(&files, out, opts, plan, &mut stats, threads)?;
         return Ok(stats);
     }
 
@@ -61,8 +62,17 @@ pub fn scan_and_write(input_dir: &Path, out: &mut dyn Write, opts: &ScanOptions)
         if let Some(max) = opts.max_file_size { if let Ok(md) = std::fs::metadata(&path) { if md.len() > max { continue; } } }
         let res = match opts.engine {
             ScanEngine::Bytes => {
-                let det = detectors_bytes.as_ref().expect("bytes detectors not built");
-                scan_file_bytes(&path, file_name, det)
+                let plan = prefilter_plan.as_ref().expect("prefilter plan not built");
+                match std::fs::metadata(&path) {
+                    Ok(md) => {
+                        if md.len() <= SMALL_FILE_MAX as u64 {
+                            scan_file_bytes_prefilter(&path, file_name, plan)
+                        } else {
+                            scan_file_bytes_chunked_prefilter(&path, file_name, plan)
+                        }
+                    }
+                    Err(_) => Err(anyhow::anyhow!("metadata failed")),
+                }
             }
             ScanEngine::Utf8 => {
                 let det = detectors_utf8.as_ref().expect("utf8 detectors not built");
@@ -95,7 +105,7 @@ fn scan_and_write_parallel_bytes(
     files: &[PathBuf],
     out: &mut dyn Write,
     opts: &ScanOptions,
-    detectors: &Arc<DetectorSetBytes>,
+    plan: &Arc<PrefilterPlan>,
     stats: &mut ScanStats,
     threads: usize,
 ) -> Result<()> {
@@ -112,7 +122,7 @@ fn scan_and_write_parallel_bytes(
 
     // 为防止 &mut out 的跨线程所有权问题，Writer 保持在当前线程
     // 扫描在后台线程内创建 Rayon 线程池并执行
-    let detectors = Arc::clone(detectors);
+    let plan = Arc::clone(plan);
     let max_file_size = opts.max_file_size;
 
     let files_vec: Vec<(usize, PathBuf)> = files
@@ -138,9 +148,9 @@ fn scan_and_write_parallel_bytes(
                     Ok(md) => {
                         let sz = md.len();
                         if sz <= SMALL_FILE_MAX as u64 {
-                            crate::engine_bytes::scan_file_bytes(path, &file_name, &detectors)
+                            crate::engine_bytes::scan_file_bytes_prefilter(path, &file_name, &plan)
                         } else {
-                            crate::engine_bytes::scan_file_bytes_chunked(path, &file_name, &detectors)
+                            crate::engine_bytes::scan_file_bytes_chunked_prefilter(path, &file_name, &plan)
                         }
                     }
                     Err(_) => Err(anyhow::anyhow!("metadata failed")),
