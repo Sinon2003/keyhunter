@@ -9,6 +9,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder};
+use regex_automata as ra;
+use ra::meta::Regex as MetaRegex;
 
 /// 归一化后的规则（来自 rules.rs 的 RuleSpec）
 use crate::rules::RuleSpec;
@@ -23,8 +25,9 @@ pub(crate) struct PrefilterPlan {
     pub(crate) anchor_to_rules: Vec<Vec<usize>>,
     /// 规则原始模式文本（bytes 正则）
     pub(crate) rule_patterns: Vec<String>,
-    /// 懒编译后的 bytes::Regex 缓存（key 为规则索引）
-    pub(crate) cache: Mutex<HashMap<usize, regex::bytes::Regex>>,
+    /// 懒编译后的 regex-automata 元引擎正则缓存（key 为规则索引）
+    /// 说明：此处使用 meta::Regex，支持捕获组；使用 Arc 以便跨线程轻量克隆
+    pub(crate) cache: Mutex<HashMap<usize, Arc<MetaRegex>>>,
 }
 
 /// 窗口参数（以 AC 命中位置为中心）
@@ -145,15 +148,16 @@ fn flush_literal(cur: &mut String, out: &mut HashSet<Vec<u8>>) {
 }
 
 /// 获取（或懒编译）指定规则索引的 bytes 正则
-pub(crate) fn get_or_compile_bytes_regex(plan: &PrefilterPlan, rule_idx: usize) -> Option<regex::bytes::Regex> {
+pub(crate) fn get_or_compile_meta_regex(plan: &PrefilterPlan, rule_idx: usize) -> Option<Arc<MetaRegex>> {
     if rule_idx >= plan.rule_patterns.len() { return None; }
     // 快路径：先查缓存
     if let Some(rx) = plan.cache.lock().unwrap().get(&rule_idx).cloned() {
         return Some(rx);
     }
     let pat = &plan.rule_patterns[rule_idx];
-    match regex::bytes::Regex::new(pat) {
+    match MetaRegex::new(pat) {
         Ok(rx) => {
+            let rx = Arc::new(rx);
             plan.cache.lock().unwrap().insert(rule_idx, rx.clone());
             Some(rx)
         }
